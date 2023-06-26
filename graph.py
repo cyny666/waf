@@ -2,7 +2,8 @@ import tkinter
 from tkinter import Button
 from tkinter import font
 from tkinter import ttk
-
+import subprocess
+import os
 # 点击按钮后的函数
 def add_rules ():
     add=tkinter.Tk()
@@ -24,7 +25,11 @@ def check_log ():
     check_log = tkinter.Tk()
     check_log.title("系统日志")
     check_log.geometry("800x400+400+200")
-
+    dmesg = tkinter.Text(check_log,height=40,width=90)
+    dmesg.pack()
+    result = subprocess.run('dmesg | tail -n 20', shell=True, capture_output=True, text=True)
+    print(result.stdout)
+    dmesg.insert(tkinter.END, result.stdout)
     check_log.mainloop()
 # 开始主函数
 root=tkinter.Tk()
@@ -39,7 +44,7 @@ remove_rules = Button(root,text = "删除规则" ,font = module,command = remove
 run_projetc = Button(root, text = "开始过滤" ,font = module)
 stop_project = Button(root, text= "停止过滤" ,font = module)
 output = Button(root,text="导出规则", font = module)
-check_log = Button(root, text='查看日志' ,font= module)
+check_log = Button(root, text='查看日志' ,font= module, command=check_log)
 # 展示按钮
 modify_rules.place(x = 190, y = 20)
 add_rules.place(x=20,y=20)
