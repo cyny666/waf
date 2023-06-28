@@ -2,8 +2,11 @@ import tkinter
 from tkinter import Button
 from tkinter import font
 from tkinter import ttk
+from tkinter import messagebox
 import subprocess
 import os
+import re
+from tkinter import END
 # 点击按钮后的函数
 def add_rules ():
     add=tkinter.Tk()
@@ -14,8 +17,8 @@ def add_rules ():
     add_SADDR.place(x = 100, y=20)
     add_DADDR = tkinter.Text(add, height=2, width=30)
     add_DADDR.place(x=500, y=20)
-    add_APORT = tkinter.Text(add, height=2, width=30)
-    add_APORT.place(x=100, y=80)
+    add_SPORT = tkinter.Text(add, height=2, width=30)
+    add_SPORT.place(x=100, y=80)
     add_DPORT = tkinter.Text(add, height=2, width=30)
     add_DPORT.place(x=500, y=80)
     # 设置时间和协议的下拉框
@@ -36,6 +39,64 @@ def add_rules ():
     time_begin.place(x=100, y=200)
     time_end = tkinter.Text(add, height=2, width=30)
     time_end.place(x=500, y=200)
+    # 设置行数
+    def add_get():
+        global number
+        DADDR_text = add_DADDR.get('1.0', 'end-1c').strip()
+        SADDR_text = add_SADDR.get('1.0', 'end-1c').strip()
+        DPORT_text = add_DPORT.get('1.0', 'end-1c').strip()
+        SPORT_text = add_SPORT.get('1.0', 'end-1c').strip()
+        time_flag_text = time_var.get().strip()
+        protocol_text = protocol_var.get().strip()
+        time_begin_text = time_begin.get('1.0', 'end-1c').strip()
+        time_end_text = time_end.get('1.0', 'end-1c').strip()
+        if  not re.search(r"\d", DADDR_text):
+            DADDR_text = "  " + DADDR_text
+        else:
+            DADDR_text_value = DADDR_text
+            DADDR_text = " -y " + DADDR_text
+        if  not re.search(r"\d", SADDR_text):
+            SADDR_text = "  " + SADDR_text
+        else:
+            SADDR_text_value = SADDR_text
+            SADDR_text = " -x " + SADDR_text
+        if  not re.search(r"\d", SPORT_text):
+            SPORT_text = "  " + SPORT_text
+        else:
+            SPORT_text_value = SPORT_text
+            SPORT_text = " -m " + SPORT_text
+        if not re.search(r"\d", DPORT_text):
+            DPORT_text = " " + DPORT_text
+        else:
+            DPORT_text_value = DPORT_text
+            DPORT_text = " -n " + DPORT_text
+        command = "./configure" + " -p " + protocol_text + SADDR_text + SPORT_text + DADDR_text + DPORT_text
+        flag = os.system(command)
+        if flag == 0:
+            messagebox.showinfo(parent=add,title="添加成功",message="添加成功")
+            # 把添加的规则插入图表
+            if not re.search(r"\d", DADDR_text):
+                DADDR_text = " any " + DADDR_text
+            else:
+                DADDR_text = DADDR_text_value
+            if not re.search(r"\d", SADDR_text):
+                SADDR_text = " any " + SADDR_text
+            else:
+                SADDR_text = " " + SADDR_text_value
+            if not re.search(r"\d", SPORT_text):
+                SPORT_text = " any " + SPORT_text
+            else:
+                SPORT_text = " " + SPORT_text_value
+            if not re.search(r"\d", DPORT_text):
+                DPORT_text = " any " + DPORT_text
+            else:
+                DPORT_text = "  " + DPORT_text_value
+            rule = [number, SADDR_text, SPORT_text, DADDR_text, DPORT_text, 1, ' ', ' ', ' ', protocol_text]
+            number += 1
+            table.insert('', END, values=rule)
+        else :
+            messagebox.showinfo(parent=add,title="error" ,message= "添加失败,请检查你的输入")
+
     # set the labels
     SADDR_label = tkinter.Label(add, text = '源地址:')
     SADDR_label.config(font=module)
@@ -57,7 +118,8 @@ def add_rules ():
     time_begin_label.place(x=30, y=200)
     time_end_label = tkinter.Label(add, text='结束时间:', font=("Arial", 10))
     time_end_label.place(x=430, y=200)
-
+    add_OK = Button(add, text="添加规则", font=("Arial", 10), command=add_get)
+    add_OK.place(x=700, y=300)
     add.mainloop()
 def remove_rules ():
     remove = tkinter.Tk()
@@ -76,10 +138,10 @@ def check_log ():
     dmesg = tkinter.Text(check_log,height=40,width=90)
     dmesg.pack()
     result = subprocess.run('dmesg | tail -n 20 ', shell=True, capture_output=True, text=True)
-    print(result.stdout)
     dmesg.insert(tkinter.END, result.stdout)
     check_log.mainloop()
 # 开始主函数
+number = 1
 root=tkinter.Tk()
 root.title("set the rules")
 # set the size
