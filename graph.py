@@ -7,7 +7,15 @@ import subprocess
 import os
 import re
 from tkinter import END
+import ipaddress
 # 点击按钮后的函数
+# 检测ip地址的合法性
+def is_valid_ip_address(ip_address_str):
+    try:
+        ipaddress.IPv4Address(ip_address_str)
+        return True
+    except ipaddress.AddressValueError:
+        return False
 def add_rules ():
     add=tkinter.Tk()
     add.title("add the rules")
@@ -42,6 +50,8 @@ def add_rules ():
     # 设置行数
     def add_get():
         global number
+        # 检验输入合理性
+        check = 1
         DADDR_text = add_DADDR.get('1.0', 'end-1c').strip()
         SADDR_text = add_SADDR.get('1.0', 'end-1c').strip()
         DPORT_text = add_DPORT.get('1.0', 'end-1c').strip()
@@ -50,6 +60,12 @@ def add_rules ():
         protocol_text = protocol_var.get().strip()
         time_begin_text = time_begin.get('1.0', 'end-1c').strip()
         time_end_text = time_end.get('1.0', 'end-1c').strip()
+        if not is_valid_ip_address(DADDR_text) and  re.search(r"\d", DADDR_text):
+            check=0
+            messagebox.showinfo(parent=add, title="error", message="输入的目标地址不合理")
+        if not is_valid_ip_address(SADDR_text) and  re.search(r"\d", SADDR_text):
+            check=0
+            messagebox.showinfo(parent=add, title="error", message="输入的源地址不合理")
         if  not re.search(r"\d", DADDR_text):
             DADDR_text = "  " + DADDR_text
         else:
@@ -70,32 +86,33 @@ def add_rules ():
         else:
             DPORT_text_value = DPORT_text
             DPORT_text = " -n " + DPORT_text
-        command = "./configure" + " -p " + protocol_text + SADDR_text + SPORT_text + DADDR_text + DPORT_text
-        flag = os.system(command)
-        if flag == 0:
-            messagebox.showinfo(parent=add,title="添加成功",message="添加成功")
-            # 把添加的规则插入图表
-            if not re.search(r"\d", DADDR_text):
-                DADDR_text = " any " + DADDR_text
-            else:
-                DADDR_text = DADDR_text_value
-            if not re.search(r"\d", SADDR_text):
-                SADDR_text = " any " + SADDR_text
-            else:
-                SADDR_text = " " + SADDR_text_value
-            if not re.search(r"\d", SPORT_text):
-                SPORT_text = " any " + SPORT_text
-            else:
-                SPORT_text = " " + SPORT_text_value
-            if not re.search(r"\d", DPORT_text):
-                DPORT_text = " any " + DPORT_text
-            else:
-                DPORT_text = "  " + DPORT_text_value
-            rule = [number, SADDR_text, SPORT_text, DADDR_text, DPORT_text, 1, ' ', ' ', ' ', protocol_text]
-            number += 1
-            table.insert('', END, values=rule)
-        else :
-            messagebox.showinfo(parent=add,title="error" ,message= "添加失败,请检查你的输入")
+        if check == 1:
+            command = "./configure" + " -p " + protocol_text + SADDR_text + SPORT_text + DADDR_text + DPORT_text
+            flag = os.system(command)
+            if flag == 0:
+                messagebox.showinfo(parent=add,title="添加成功",message="添加成功")
+                # 把添加的规则插入图表
+                if not re.search(r"\d", DADDR_text):
+                    DADDR_text = " any " + DADDR_text
+                else:
+                    DADDR_text = DADDR_text_value
+                if not re.search(r"\d", SADDR_text):
+                    SADDR_text = " any " + SADDR_text
+                else:
+                    SADDR_text = " " + SADDR_text_value
+                if not re.search(r"\d", SPORT_text):
+                    SPORT_text = " any " + SPORT_text
+                else:
+                    SPORT_text = " " + SPORT_text_value
+                if not re.search(r"\d", DPORT_text):
+                    DPORT_text = " any " + DPORT_text
+                else:
+                    DPORT_text = "  " + DPORT_text_value
+                rule = [number, SADDR_text, SPORT_text, DADDR_text, DPORT_text, 1, ' ', ' ', protocol_text]
+                number += 1
+                table.insert('', END, values=rule)
+            else :
+                messagebox.showinfo(parent=add,title="error" ,message= "添加失败,请检查你的输入")
 
     # set the labels
     SADDR_label = tkinter.Label(add, text = '源地址:')
@@ -140,6 +157,21 @@ def check_log ():
     result = subprocess.run('dmesg | tail -n 20 ', shell=True, capture_output=True, text=True)
     dmesg.insert(tkinter.END, result.stdout)
     check_log.mainloop()
+def run_project ():
+    run_flag = os.system('insmod mod_firewall.ko ')
+    if run_flag == 0 :
+        messagebox.showinfo(parent=root, title="开启防火墙", message="开启防火墙")
+    else :
+        messagebox.showinfo(parent=root, title="过滤失败", message="error")
+def stop_project ():
+    stop_flag = os.system('rmmod mod_firewall.ko')
+    if stop_flag == 0 :
+        messagebox.showinfo(parent=root, title="关闭防火墙", message="关闭防火墙")
+        obj = table.get_children()  # 获取所有对象
+        for o in obj:
+            table.delete(o)  # 删除对象
+    else :
+        messagebox.showinfo(parent=root, title="停止失败", message="error")
 # 开始主函数
 number = 1
 root=tkinter.Tk()
@@ -151,8 +183,8 @@ module = font.Font(family='Helvetica', size=12)
 modify_rules = Button(root,text = "修改规则" ,command = modify_rules, font=module)
 add_rules = Button(root, text = "添加规则" ,command = add_rules, font=module)
 remove_rules = Button(root,text = "删除规则" ,font = module,command = remove_rules)
-run_projetc = Button(root, text = "开始过滤" ,font = module)
-stop_project = Button(root, text= "停止过滤" ,font = module)
+run_projetc = Button(root, text = "开启防火墙" ,font = module,command=run_project)
+stop_project = Button(root, text= "关闭防火墙" ,font = module,command=stop_project)
 output = Button(root,text="导出规则", font = module)
 check_log = Button(root, text='查看日志' ,font= module, command=check_log)
 # 展示按钮
