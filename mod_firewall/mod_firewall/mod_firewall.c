@@ -31,23 +31,23 @@ int enable_flag = 0;
 
 struct nf_hook_ops myhook;	//Netfilter 框架中定义的结构体，用于注册和管理钩子函数。它包含了一些字段和回调函数，用于指定钩子函数的行为和属性。
 
-/**保存真正使用的规则信息*/
-unsigned int controlled_protocol = 0;
-unsigned short controlled_srcport = 0;
-unsigned short controlled_dstport = 0;
-unsigned int controlled_saddr = 0;
-unsigned int controlled_daddr = 0;
+// /**保存真正使用的规则信息*/
+// unsigned int controlled_protocol = 0;
+// unsigned short controlled_srcport = 0;
+// unsigned short controlled_dstport = 0;
+// unsigned int controlled_saddr = 0;
+// unsigned int controlled_daddr = 0;
 
-//时间控制信息
-int controlled_time_flag=0; //0表示时间判断功能关闭
-unsigned int  controlled_time_begin=0;  
-unsigned int controlled_time_end=0;  
+// //时间控制信息
+// int controlled_time_flag=0; //0表示时间判断功能关闭
+// unsigned int  controlled_time_begin=0;  
+// unsigned int controlled_time_end=0;  
 
-//网络接口
-int controlled_interface=0;
+// //网络接口
+// int controlled_interface=0;
 
-//icmp报文类型
-int icmp_type[9]={0,0,0,0,0,0,0,0,0};
+// //icmp报文类型
+// int icmp_type[9]={0,0,0,0,0,0,0,0,0};
 /*
 0: 回显应答报文（Echo Reply）：宏定义 ICMP_ECHOREPLY，值为 0。
 1: 回显请求报文（Echo Request）：宏定义 ICMP_ECHO，值为 8。
@@ -82,11 +82,38 @@ struct KV_interface interface_available[2]={
 	{1,"ens33"},
 	{2,"lo"}
 };
+
+//表示1条规则的结构体，大小为18*4=72字节
+struct Rule
+{
+unsigned int m_controlled_protocol;	//协议名
+unsigned short m_controlled_srcport;	//源端口号
+unsigned short m_controlled_dstport;	//目的端口号
+unsigned int m_controlled_saddr;	//源IP地址
+unsigned int m_controlled_daddr; 	//目的IP地址
+
+//时间控制信息
+int m_controlled_time_flag; //0表示时间判断功能关闭
+unsigned int  m_controlled_time_begin;
+unsigned int m_controlled_time_end;
+int m_icmp_type[9];
+int m_controlled_interface;
+
+//int m_index;    //规则序号
+};
+
+
+struct Rule rules_array[30];    //存储规则信息的数组
+int rules_num=0;    //规则数目
+
 struct sk_buff *tmpskb;
 struct iphdr *piphdr;
 
 /*检查端口号是否匹配*/
-int port_check(unsigned short srcport, unsigned short dstport){
+int port_check(unsigned short srcport, unsigned short dstport,int index){
+    unsigned short controlled_srcport=rules_array[index].m_controlled_srcport;
+    unsigned short controlled_dstport=rules_array[index].m_controlled_dstport;
+
 	if ((controlled_srcport == 0 ) && ( controlled_dstport == 0 ))
 		return MATCH;
 	if ((controlled_srcport != 0 ) && ( controlled_dstport == 0 ))
@@ -114,7 +141,10 @@ int port_check(unsigned short srcport, unsigned short dstport){
 }
 
 /*检测IP地址是否匹配，若匹配返回MATCH并丢弃网络包*/
-int ipaddr_check(unsigned int saddr, unsigned int daddr){
+int ipaddr_check(unsigned int saddr, unsigned int daddr,int index){
+    unsigned short controlled_saddr=rules_array[index].m_controlled_saddr;
+    unsigned short controlled_daddr=rules_array[index].m_controlled_daddr;
+
 	if ((controlled_saddr == 0 ) && ( controlled_daddr == 0 ))	//未设置IP地址
 		return MATCH;
 	if ((controlled_saddr != 0 ) && ( controlled_daddr == 0 ))
@@ -142,7 +172,11 @@ int ipaddr_check(unsigned int saddr, unsigned int daddr){
 }
 
 // ICMP协议检查函数
-int icmp_check(void){
+//返回1表示拒绝
+int icmp_check(int index){
+
+    int* icmp_type=rules_array[index].m_icmp_type;
+
 	struct icmphdr *picmphdr;	//struct icmphdr 是定义在 <linux/icmp.h> 头文件中的结构体，用于表示 ICMP（Internet Control Message Protocol）报文头部的信息。
 //  	printk("<0>This is an ICMP packet.\n");
    picmphdr = (struct icmphdr *)(tmpskb->data +(piphdr->ihl*4));	//将该指针指向 ICMP 报文数据的位置
@@ -150,43 +184,48 @@ int icmp_check(void){
 	for(int i=0;i<9;i++){
 	//printk("icmp[%d]: %d",i,icmp_type[i]);
         if(picmphdr->type==(icmp_type_reflection[i]).value &&icmp_type[(icmp_type_reflection[i]).key]==1 ){
-            if (ipaddr_check(piphdr->daddr,piphdr->saddr) == MATCH){
+            if (ipaddr_check(piphdr->daddr,piphdr->saddr,index) == MATCH ){
 			 	printk("An ICMP packet is denied! \n");
-				return NF_DROP;
+				return 1;
 			}
         }
     
     }
-    return NF_ACCEPT;
+    return 0;
 }
 
-
-int tcp_check(void){
+//返回1表示拒绝
+int tcp_check(int index){
 	struct tcphdr *ptcphdr;
 //   printk("<0>This is an tcp packet.\n");
    ptcphdr = (struct tcphdr *)(tmpskb->data +(piphdr->ihl*4));
-	if ((ipaddr_check(piphdr->saddr,piphdr->daddr) == MATCH) && (port_check(ptcphdr->source,ptcphdr->dest) == MATCH)){
+	if ((ipaddr_check(piphdr->saddr,piphdr->daddr,index) == MATCH) && (port_check(ptcphdr->source,ptcphdr->dest,index) == MATCH)){
 	 	printk("A TCP packet is denied! \n");
-		return NF_DROP;
+		return 1;
 	}
 	else
-      return NF_ACCEPT;
+      return 0;
 }
 
-int udp_check(void){
+//返回1表示拒绝
+int udp_check(int index){
 	struct udphdr *pudphdr;
 //   printk("<0>This is an udp packet.\n");
    pudphdr = (struct udphdr *)(tmpskb->data +(piphdr->ihl*4));
-	if ((ipaddr_check(piphdr->saddr,piphdr->daddr) == MATCH) && (port_check(pudphdr->source,pudphdr->dest) == MATCH)){
+	if ((ipaddr_check(piphdr->saddr,piphdr->daddr,index) == MATCH) && (port_check(pudphdr->source,pudphdr->dest,index) == MATCH)){
 	 	printk("A UDP packet is denied! \n");
-		return NF_DROP;
+		return 1;
 	}
 	else
-      return NF_ACCEPT;
+      return 0;
 }
 
 //返回0表示时间判断功能关闭 或当前时间符合规则
-int time_check(struct tm *tm){
+int time_check(struct tm *tm,int rule_index){
+    int controlled_time_flag=rules_array[rule_index].m_controlled_time_flag;
+    int controlled_time_begin=rules_array[rule_index].m_controlled_time_begin;
+    int controlled_time_end=rules_array[rule_index].m_controlled_time_end;
+  
     if(controlled_time_flag==0) return 0;
     else if(controlled_time_flag==1){
         int current_mins=(8+tm->tm_hour)*60+tm->tm_min;
@@ -203,7 +242,9 @@ int time_check(struct tm *tm){
 }
 
 
-int net_interface_check(struct sk_buff *skb,const struct nf_hook_state *state){
+int net_interface_check(struct sk_buff *skb,const struct nf_hook_state *state,int rule_index){
+
+    int controlled_interface=rules_array[rule_index].m_controlled_interface;
 
 	if(controlled_interface==0)return 0;	//对接口无要求直接返回
 
@@ -250,49 +291,60 @@ int net_interface_check(struct sk_buff *skb,const struct nf_hook_state *state){
 /*网络钩子函数 hook_func，用于网络数据包过滤和处理*/
 unsigned int hook_func(void * priv,struct sk_buff *skb,const struct nf_hook_state * state){
 	
-	
-	if (enable_flag == 0)	//网络过滤器被禁用，返回NF_ACCEPT表示接受该数据包
+    if (enable_flag == 0)	//网络过滤器被禁用，返回NF_ACCEPT表示接受该数据包
 		return NF_ACCEPT;
-   	tmpskb = skb;	//将数据包传给全局变量
-	piphdr = ip_hdr(tmpskb);	//获取IP报文头部的指针
-	
-	//检查网络接口
-	if(net_interface_check(skb,state)==1){
-		printk("The current network interface is disabled!\n");
-		return NF_DROP;
-	}
-    //获取时间
-    struct timespec64 ts;
-    struct tm time_info;
-    ktime_get_real_ts64(&ts);  // 获取当前系统时间
-    time64_to_tm(ts.tv_sec, 0, &time_info);  // 将时间转换为本地时间
 
-    if(time_check(&time_info)==1)return NF_DROP;    //判断时间是否符合规则
 
-	if(piphdr->protocol != controlled_protocol)
-      		return NF_ACCEPT;
+    for(int i=0;i<rules_num;++i){
+
+        tmpskb = skb;	//将数据包传给全局变量
+        piphdr = ip_hdr(tmpskb);	//获取IP报文头部的指针
+        
+        //检查网络接口
+        if(net_interface_check(skb,state,i)==1){
+            printk("The current network interface is disabled!\n");
+            return NF_DROP;
+        }
+        //获取时间
+        struct timespec64 ts;
+        struct tm time_info;
+        ktime_get_real_ts64(&ts);  // 获取当前系统时间
+        time64_to_tm(ts.tv_sec, 0, &time_info);  // 将时间转换为本地时间
+
+        if(time_check(&time_info,i)==1)return NF_DROP;    //判断时间是否符合规则
+  
+    }
+
+    //协议类型过滤
+    for(int i=0;i<rules_num;++i){
+
+            if(piphdr->protocol==rules_array[i].m_controlled_protocol){
+
+                if (piphdr->protocol  == 1)  //ICMP packet
+                {
+                    printk("icmp\n");
+                    if(icmp_check(i)==1) return NF_DROP;
+                }
+                else if (piphdr->protocol  == 6) //TCP packet
+                {
+                    printk("tcp\n");
+                    if(tcp_check(i)==1) return NF_DROP;
+                }
+                else if (piphdr->protocol  == 17) //UDP packet
+                {
+                    printk("udp\n");
+                    if(udp_check(i)==1) return NF_DROP;
+                }
+                else
+                {
+                    printk("Unkonwn type's packet! \n");
+                }
+            }
+    }
+
+    return NF_ACCEPT;   //如果经过以上for循环的过滤仍然没有拒绝，则接受网络包
+
 	
-	
-	if (piphdr->protocol  == 1)  //ICMP packet
-	{
-		printk("icmp\n");
-		return icmp_check();
-	}
-	else if (piphdr->protocol  == 6) //TCP packet
-	{
-		printk("tcp\n");
-		return tcp_check();
-	}
-	else if (piphdr->protocol  == 17) //UDP packet
-	{
-		printk("udp\n");
-		return udp_check();
-	}
-	else
-	{
-		printk("Unkonwn type's packet! \n");
-		return NF_ACCEPT;
-	}
 }
 
 static ssize_t write_controlinfo(struct file * fd, const char __user *buf, size_t len, loff_t *ppos)
@@ -314,45 +366,59 @@ static ssize_t write_controlinfo(struct file * fd, const char __user *buf, size_
 		printk("Something may be wrong, please check it! \n");
 		return 0;
 	}
-	controlled_protocol = *(( int *) pchar);
-	pchar = pchar + 4;
-	controlled_saddr = *(( int *) pchar);
-	pchar = pchar + 4;
-	controlled_daddr = *(( int *) pchar);
-	pchar = pchar + 4;
-	controlled_srcport = *(( int *) pchar);
-	pchar = pchar + 4;
-	controlled_dstport = *(( int *) pchar);
-    pchar = pchar + 4;
-    controlled_time_flag = *(( int *) pchar);
-    pchar = pchar + 4;
-    controlled_time_begin = *(( int *) pchar);
-    pchar = pchar + 4;
-    controlled_time_end = *(( int *) pchar);
-    for(int i=0;i<9;i++){
-        pchar = pchar + 4;
-        icmp_type[i]=*(( int *) pchar);
-    }
-    pchar = pchar + 4;
-    controlled_interface=*(( int *) pchar);
+	// controlled_protocol = *(( int *) pchar);
+	// pchar = pchar + 4;
+	// controlled_saddr = *(( int *) pchar);
+	// pchar = pchar + 4;
+	// controlled_daddr = *(( int *) pchar);
+	// pchar = pchar + 4;
+	// controlled_srcport = *(( int *) pchar);
+	// pchar = pchar + 4;
+	// controlled_dstport = *(( int *) pchar);
+    // pchar = pchar + 4;
+    // controlled_time_flag = *(( int *) pchar);
+    // pchar = pchar + 4;
+    // controlled_time_begin = *(( int *) pchar);
+    // pchar = pchar + 4;
+    // controlled_time_end = *(( int *) pchar);
+    // for(int i=0;i<9;i++){
+    //     pchar = pchar + 4;
+    //     icmp_type[i]=*(( int *) pchar);
+    // }
+    // pchar = pchar + 4;
+    // controlled_interface=*(( int *) pchar);
 
-
+    rules_array[rules_num]=*((struct Rule *)pchar);
+    
+    
 	enable_flag = 1;
+    printk("Rule %d is as follows: ",rules_num+1);
 	printk("input info: p = %d, x = %d y = %d m = %d n = %d; Time: flag = %d and %d ~ %d",
-     controlled_protocol,controlled_saddr,controlled_daddr,controlled_srcport,controlled_dstport,
-     controlled_time_flag,controlled_time_begin,controlled_time_end);
+     rules_array[rules_num].m_controlled_protocol,
+     rules_array[rules_num].m_controlled_saddr,
+     rules_array[rules_num].m_controlled_daddr,
+     rules_array[rules_num].m_controlled_srcport,
+     rules_array[rules_num].m_controlled_dstport,
+     rules_array[rules_num].m_controlled_time_flag,
+     rules_array[rules_num].m_controlled_time_begin,
+     rules_array[rules_num].m_controlled_time_end);
     printk("rejected icmp type: ");
     for(int i=0;i<9;i++){
-        if(icmp_type[i]==1){
+        if(rules_array[rules_num].m_icmp_type[i]==1){
             printk(" %d",i+1);
         }
     }
-    printk("controlled interface %d",controlled_interface);
-    
+    printk("controlled interface %d",rules_array[rules_num].m_controlled_interface);
+
+    printk("rule len = %d bytes",len);
+
+    ++rules_num;
+
 	return len;
 }
 
-//struct file_operations 是 Linux 内核中定义的结构体，用于描述设备文件的操作函数集合。通过初始化该结构体的成员，可以指定设备文件的操作函数。
+//struct file_operations 是 Linux 内核中定义的结构体，用于描述设备文件的操作函数集合。
+//通过初始化该结构体的成员，可以指定设备文件的操作函数。
 struct file_operations fops = {
 	.owner=THIS_MODULE,	//用于指定该设备文件操作函数集合所属的模块。THIS_MODULE 是一个宏，表示当前模块自身
 	.write=write_controlinfo,//用于指定写操作的函数指针。write_controlinfo 是一个自定义的函数，用于处理设备文件的写操作。
