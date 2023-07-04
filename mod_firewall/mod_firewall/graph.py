@@ -277,17 +277,6 @@ def remove_rules (treeview):
     remove.title("remove the rules")
     remove.geometry("800x400+400+200")
     remove.mainloop()
-    rules = []
-    number_rows = len(treeview.get_children())
-    rules_select = tkinter.Label(remove, text="输入要删除的规则:", font=("Arial", 10))
-    rules_select.place(x=70, y=70)
-    for number in range(number_rows):
-        rules.append('规则' + str(number + 1))
-    rules_option = tkinter.StringVar()
-    rule_select = ttk.Combobox(remove, textvariable=rules_option, values=rules, width=10, height=10)
-    sure = tkinter.Button(remove, text="确定", font=("Arial", 10), command=modify_rule)
-    sure.place(x=300, y=170)
-    rule_select.place(x=200, y=70)
 
 def modify_rules(treeview):
     check_rules = tkinter.Tk()
@@ -300,6 +289,9 @@ def modify_rules(treeview):
     for number in range(number_rows):
         rules.append('规则' + str(number + 1))
     def modify_rule():
+        # get the rule number
+        select_rule = rule_select.get()
+        print(select_rule)
         check_rules.destroy()
         modify = tkinter.Tk()
         modify.title('modify this rule')
@@ -462,7 +454,6 @@ def modify_rules(treeview):
         modify_OK = Button(modify, text="添加规则", font=("Arial", 10), command=modify_get)
         modify_OK.place(x=700, y=300)
         modify.mainloop()
-
     rules_option = tkinter.StringVar()
     rule_select = ttk.Combobox(check_rules,textvariable=rules_option,values=rules,width=10,height=10)
     sure = tkinter.Button(check_rules,text="确定",font=("Arial", 10),command=modify_rule)
@@ -551,6 +542,7 @@ table.place(x=20, y=70)
 
 #show the window
 root.mainloop()
+
 
 
 
