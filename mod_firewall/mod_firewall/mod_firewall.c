@@ -178,6 +178,20 @@ int icmp_check(int index){
 
     int* icmp_type=rules_array[index].m_icmp_type;
 
+    if(icmp_type[0]==0
+    &&icmp_type[1]==0
+    &&icmp_type[2]==0
+    &&icmp_type[3]==0
+    &&icmp_type[4]==0
+    &&icmp_type[5]==0
+    &&icmp_type[6]==0
+    &&icmp_type[7]==0
+    &&icmp_type[8]==0)
+    {
+        printk("Any ICMP packet is denied! \n");
+        return 1;
+    }
+
 	struct icmphdr *picmphdr;	//struct icmphdr 是定义在 <linux/icmp.h> 头文件中的结构体，用于表示 ICMP（Internet Control Message Protocol）报文头部的信息。
 //  	printk("<0>This is an ICMP packet.\n");
    picmphdr = (struct icmphdr *)(tmpskb->data +(piphdr->ihl*4));	//将该指针指向 ICMP 报文数据的位置
@@ -186,7 +200,7 @@ int icmp_check(int index){
 	//printk("icmp[%d]: %d",i,icmp_type[i]);
         if(picmphdr->type==(icmp_type_reflection[i]).value &&icmp_type[(icmp_type_reflection[i]).key]==1 ){
             if (ipaddr_check(piphdr->daddr,piphdr->saddr,index) == MATCH ){
-			 	printk("An ICMP packet is denied! \n");
+			 	printk("This type of ICMP packet is denied! \n");
 				return 1;
 			}
         }
@@ -227,7 +241,7 @@ int time_check(struct tm *tm,int rule_index){
     int controlled_time_begin=rules_array[rule_index].m_controlled_time_begin;
     int controlled_time_end=rules_array[rule_index].m_controlled_time_end;
   
-    if(controlled_time_flag==0) return 0;
+    if(controlled_time_flag==0) return 1;
     else if(controlled_time_flag==1){
         int current_mins=(8+tm->tm_hour)*60+tm->tm_min;
 
@@ -375,16 +389,19 @@ unsigned int hook_func(void * priv,struct sk_buff *skb,const struct nf_hook_stat
         }
         else if(result_protocol_check==1)
         {
+            printk("icmp checking");
             result_tcp_check=result_udp_check=1;
             result_icmp_check=icmp_check(i);
         }
         else if(result_protocol_check==2)
         {
+            printk("tcp checking");
             result_icmp_check=result_udp_check=1;
             result_tcp_check=tcp_check(i);
         }
         else if(result_protocol_check==3)
         {
+            printk("udp checking");
             result_tcp_check=result_icmp_check=1;
             result_udp_check=udp_check(i);
         }
@@ -392,9 +409,14 @@ unsigned int hook_func(void * priv,struct sk_buff *skb,const struct nf_hook_stat
         {
             printk("Invalid result of protocol check!!");
         }
+        //printk("%d,%d,%d,%d,%d",result_interface_check , result_time_check, result_icmp_check, result_tcp_check , result_udp_check);
 
         if(result_interface_check && result_time_check && result_icmp_check && result_tcp_check && result_udp_check)
+        {
+            
             return NF_DROP;
+        }
+            
         else continue;
 
     }
@@ -475,7 +497,7 @@ static ssize_t write_controlinfo(struct file * fd, const char __user *buf, size_
                 printk(" %d",i+1);
             }
         }
-        printk("controlled interface %d",rules_array[rules_num].m_controlled_interface);
+        //printk("controlled interface %d",rules_array[rules_num].m_controlled_interface);
 
         printk("rule len = %d bytes",len);
 
