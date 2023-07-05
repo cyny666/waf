@@ -291,7 +291,29 @@ def modify_rules(treeview):
     def modify_rule():
         # get the rule number
         select_rule = rule_select.get()
-        print(select_rule)
+        select_number =select_rule[-1]
+        row_values = treeview.item(treeview.get_children()[int(select_number) - 1])["values"]
+        select_saddr = row_values[1]
+        select_sport = row_values[2]
+        select_daddr = row_values[3]
+        select_dport = row_values[4]
+        select_interface = row_values[5]
+        select_begin = row_values[6]
+        select_end = row_values[7]
+        select_protocol = row_values[8]
+        select_subtype = row_values[9]
+        if 'any' in select_saddr:
+            select_saddr = ' '
+        if 'any' in select_daddr:
+            select_daddr = ' '
+        if 'any' in select_sport:
+            select_sport = ' '
+        if 'any' in select_dport:
+            select_dport = ' '
+        if 'any' in select_interface:
+            select_interface = ' '
+        if 'any' in select_subtype:
+            select_subtype = ' '
         check_rules.destroy()
         modify = tkinter.Tk()
         modify.title('modify this rule')
@@ -299,12 +321,16 @@ def modify_rules(treeview):
         # 设置输入框
         modify_SmodifyR = tkinter.Text(modify, height=2, width=30)
         modify_SmodifyR.place(x=100, y=20)
+        modify_SmodifyR.insert("end",select_saddr)
         modify_DmodifyR = tkinter.Text(modify, height=2, width=30)
         modify_DmodifyR.place(x=500, y=20)
+        modify_DmodifyR.insert("end", select_daddr)
         modify_SPORT = tkinter.Text(modify, height=2, width=30)
         modify_SPORT.place(x=100, y=80)
+        modify_SPORT.insert('end', select_sport)
         modify_DPORT = tkinter.Text(modify, height=2, width=30)
         modify_DPORT.place(x=500, y=80)
+        modify_DPORT.insert('end', select_dport)
         # 设置时间和协议的下拉框
         time_flag_value = ['是', '否']
         time_var = tkinter.StringVar(modify)
@@ -321,12 +347,16 @@ def modify_rules(treeview):
         # 设置开始时间和结束时间
         time_begin = tkinter.Text(modify, height=2, width=30)
         time_begin.place(x=100, y=200)
+        time_begin.insert('end', select_begin)
         time_end = tkinter.Text(modify, height=2, width=30)
         time_end.place(x=500, y=200)
+        time_end.insert('end', select_end)
         icmp_subtype = tkinter.Text(modify, height=2, width=30)
         icmp_subtype.place(x=100, y=260)
+        icmp_subtype.insert('end', select_subtype)
         interface = tkinter.Text(modify, height=2, width=30)
         interface.place(x=500, y=260)
+        interface.insert('end', select_interface)
 
         # 设置行数
         def modify_get():
