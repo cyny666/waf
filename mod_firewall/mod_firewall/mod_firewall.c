@@ -109,6 +109,7 @@ int rules_num=0;    //规则数目
 struct sk_buff *tmpskb;
 struct iphdr *piphdr;
 
+
 /*检查端口号是否匹配*/
 int port_check(unsigned short srcport, unsigned short dstport,int index){
     unsigned short controlled_srcport=rules_array[index].m_controlled_srcport;
@@ -242,11 +243,12 @@ int time_check(struct tm *tm,int rule_index){
 }
 
 
+//返回1表示网络包的接口为要拒绝的接口
 int net_interface_check(struct sk_buff *skb,const struct nf_hook_state *state,int rule_index){
 
     int controlled_interface=rules_array[rule_index].m_controlled_interface;
 
-	if(controlled_interface==0)return 0;	//对接口无要求直接返回
+	if(controlled_interface==0)return 1;	//对接口无要求直接返回
 
 	struct net_device *dev_crl;
     unsigned char *controlled_mac_addr;
@@ -280,11 +282,60 @@ int net_interface_check(struct sk_buff *skb,const struct nf_hook_state *state,in
 
 
 	int result = memcmp(mac_addr, controlled_mac_addr, 6);
-	if(result==0)return 0;
-	else return 1;
+	if(result==0)return 1;
+	else return 0;
 
 
 }
+
+void delete_rule(const int rule_index){
+    for(int i=rule_index-1;i<rules_num-1;++i){
+        rules_array[i]=rules_array[i+1];
+    }
+    --rules_num;
+}
+
+void Packet_filtering_control_rule_information(void){
+    printk("There are currently %d rules in total",rules_num);
+    if(rules_num>0){
+        for(int  i=0;i<rules_num;i++)
+        {
+            printk("rule %d is as follows: ",i+1);
+            printk(" p = %d, x = %d y = %d m = %d n = %d; Time: flag = %d and %d ~ %d",
+            rules_array[i].m_controlled_protocol,
+            rules_array[i].m_controlled_saddr,
+            rules_array[i].m_controlled_daddr,
+            rules_array[i].m_controlled_srcport,
+            rules_array[i].m_controlled_dstport,
+            rules_array[i].m_controlled_time_flag,
+            rules_array[i].m_controlled_time_begin,
+            rules_array[i].m_controlled_time_end
+                    );
+            printk("rejected icmp type: ");
+            for(int j=0;j<9;j++)
+                if(rules_array[i].m_icmp_type[j]==1)
+                    printk(" %d",i+1);
+            printk("controlled interface %d",rules_array[i].m_controlled_interface);
+          
+        }
+        
+    }
+}
+
+//返回-1表示规则未设置协议，返回0表示不是规则设置的协议，返回1-3对应相应的协议
+int protocol_check(unsigned char protocol,int rule_index)
+{
+    if(rules_array[rule_index].m_controlled_protocol==0)
+        return -1;
+    if(protocol!=rules_array[rule_index].m_controlled_protocol)
+        return 0;
+    else {
+        if(rules_array[rule_index].m_controlled_protocol==1) return 1;
+        else if(rules_array[rule_index].m_controlled_protocol==6) return 2;
+        else return 3;
+    }
+}
+
 
 /*unsigned int hook_func(unsigned int hooknum,struct sk_buff **skb,const struct net_device *in,const struct net_device *out,int (*okfn)(struct sk_buff *))
 */
@@ -294,53 +345,61 @@ unsigned int hook_func(void * priv,struct sk_buff *skb,const struct nf_hook_stat
     if (enable_flag == 0)	//网络过滤器被禁用，返回NF_ACCEPT表示接受该数据包
 		return NF_ACCEPT;
 
+    tmpskb = skb;	//将数据包传给全局变量
+    piphdr = ip_hdr(tmpskb);	//获取IP报文头部的指针
 
-    for(int i=0;i<rules_num;++i){
+    for(int i=0;i<rules_num;++i)
+    {
 
-        tmpskb = skb;	//将数据包传给全局变量
-        piphdr = ip_hdr(tmpskb);	//获取IP报文头部的指针
-        
-        //检查网络接口
-        if(net_interface_check(skb,state,i)==1){
-            printk("The current network interface is disabled!\n");
-            return NF_DROP;
-        }
+        int result_interface_check=net_interface_check(skb,state,i);
+
         //获取时间
         struct timespec64 ts;
         struct tm time_info;
         ktime_get_real_ts64(&ts);  // 获取当前系统时间
         time64_to_tm(ts.tv_sec, 0, &time_info);  // 将时间转换为本地时间
 
-        if(time_check(&time_info,i)==1)return NF_DROP;    //判断时间是否符合规则
-  
+        int result_time_check=time_check(&time_info,i);
+
+        int result_protocol_check=protocol_check(piphdr->protocol,i);
+        int result_icmp_check=1;
+        int result_tcp_check=1;
+        int result_udp_check=1;
+        if(result_protocol_check==-1 )  //规则未设置协议
+        { 
+            result_icmp_check=result_tcp_check=result_udp_check=1;
+        }
+        else if(result_protocol_check==0)   //网络包协议与规则协议不同
+        {
+            result_icmp_check=result_tcp_check=result_udp_check=0;
+        }
+        else if(result_protocol_check==1)
+        {
+            result_tcp_check=result_udp_check=1;
+            result_icmp_check=icmp_check(i);
+        }
+        else if(result_protocol_check==2)
+        {
+            result_icmp_check=result_udp_check=1;
+            result_tcp_check=tcp_check(i);
+        }
+        else if(result_protocol_check==3)
+        {
+            result_tcp_check=result_icmp_check=1;
+            result_udp_check=udp_check(i);
+        }
+        else
+        {
+            printk("Invalid result of protocol check!!");
+        }
+
+        if(result_interface_check && result_time_check && result_icmp_check && result_tcp_check && result_udp_check)
+            return NF_DROP;
+        else continue;
+
     }
 
-    //协议类型过滤
-    for(int i=0;i<rules_num;++i){
 
-            if(piphdr->protocol==rules_array[i].m_controlled_protocol){
-
-                if (piphdr->protocol  == 1)  //ICMP packet
-                {
-                    printk("icmp\n");
-                    if(icmp_check(i)==1) return NF_DROP;
-                }
-                else if (piphdr->protocol  == 6) //TCP packet
-                {
-                    printk("tcp\n");
-                    if(tcp_check(i)==1) return NF_DROP;
-                }
-                else if (piphdr->protocol  == 17) //UDP packet
-                {
-                    printk("udp\n");
-                    if(udp_check(i)==1) return NF_DROP;
-                }
-                else
-                {
-                    printk("Unkonwn type's packet! \n");
-                }
-            }
-    }
 
     return NF_ACCEPT;   //如果经过以上for循环的过滤仍然没有拒绝，则接受网络包
 
@@ -388,32 +447,40 @@ static ssize_t write_controlinfo(struct file * fd, const char __user *buf, size_
     // pchar = pchar + 4;
     // controlled_interface=*(( int *) pchar);
 
-    rules_array[rules_num]=*((struct Rule *)pchar);
-    
-    
-	enable_flag = 1;
-    printk("Rule %d is as follows: ",rules_num+1);
-	printk("input info: p = %d, x = %d y = %d m = %d n = %d; Time: flag = %d and %d ~ %d",
-     rules_array[rules_num].m_controlled_protocol,
-     rules_array[rules_num].m_controlled_saddr,
-     rules_array[rules_num].m_controlled_daddr,
-     rules_array[rules_num].m_controlled_srcport,
-     rules_array[rules_num].m_controlled_dstport,
-     rules_array[rules_num].m_controlled_time_flag,
-     rules_array[rules_num].m_controlled_time_begin,
-     rules_array[rules_num].m_controlled_time_end);
-    printk("rejected icmp type: ");
-    for(int i=0;i<9;i++){
-        if(rules_array[rules_num].m_icmp_type[i]==1){
-            printk(" %d",i+1);
-        }
+    if(len==4){
+        int delete_rule_index=*(int *)pchar;
+        printk("delete_rule_index = %d",delete_rule_index);
+        delete_rule(delete_rule_index);
+        Packet_filtering_control_rule_information();
+
     }
-    printk("controlled interface %d",rules_array[rules_num].m_controlled_interface);
+    else{
+        //initial_rules(rules_array[rules_num]);
+        rules_array[rules_num]=*((struct Rule *)pchar);
 
-    printk("rule len = %d bytes",len);
+        enable_flag = 1;
+        printk("Rule %d is as follows: ",rules_num+1);
+        printk("input info: p = %d, x = %d y = %d m = %d n = %d; Time: flag = %d and %d ~ %d",
+        rules_array[rules_num].m_controlled_protocol,
+        rules_array[rules_num].m_controlled_saddr,
+        rules_array[rules_num].m_controlled_daddr,
+        rules_array[rules_num].m_controlled_srcport,
+        rules_array[rules_num].m_controlled_dstport,
+        rules_array[rules_num].m_controlled_time_flag,
+        rules_array[rules_num].m_controlled_time_begin,
+        rules_array[rules_num].m_controlled_time_end);
+        printk("rejected icmp type: ");
+        for(int i=0;i<9;i++){
+            if(rules_array[rules_num].m_icmp_type[i]==1){
+                printk(" %d",i+1);
+            }
+        }
+        printk("controlled interface %d",rules_array[rules_num].m_controlled_interface);
 
-    ++rules_num;
+        printk("rule len = %d bytes",len);
 
+        ++rules_num;
+    }
 	return len;
 }
 

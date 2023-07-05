@@ -71,6 +71,7 @@ for(int i=0;i<9;++i)
 rule->m_controlled_interface=0;
 }
 
+int delete_rule_index=0;
 
 void display_usage(char *commandname)	//输出显示命令用法
 {
@@ -86,7 +87,7 @@ int getpara(int argc, char *argv[],struct Rule* rule){
  	char *icmp_types[MAX_ICMP_TYPES];
     int num_icmp_types = 0;
 
-	optret = getopt(argc,argv,"pxymnhbeti");
+	optret = getopt(argc,argv,"pxymnhbetid");
 	while( optret != -1 ) {		
 //			printf(" first in getpara: %s\n",argv[optind]);
         	switch( optret ) {
@@ -170,6 +171,14 @@ int getpara(int argc, char *argv[],struct Rule* rule){
                 }
                 rule->m_controlled_interface=tmp_interface;
                 break;
+        case 'd':
+                int tmp_delete_rule=atoi(argv[optind]);
+                if(tmp_delete_rule==0){
+                    printf("Invalid delete rule index! please check and try again! \n ");
+					exit(1);
+                }
+                delete_rule_index=tmp_delete_rule;
+                break;
 
 
          case 'h':   /* fall-through is intentional ，故意失败*/ 
@@ -184,7 +193,7 @@ int getpara(int argc, char *argv[],struct Rule* rule){
          	display_usage(argv[0]);
          	exit(1);
         	}
-		optret = getopt(argc,argv,"pxymnhbeti");
+		optret = getopt(argc,argv,"pxymnhbetid");
 	}
 
 
@@ -202,10 +211,17 @@ int main(int argc, char *argv[]){
 	else if (argc > 1){
         struct Rule tmp_rule;
         initial_rules(&tmp_rule);
-
-
 		getpara(argc, argv,&tmp_rule);
-        *(struct Rule *)controlinfo = tmp_rule;
+        //printf("test000\n");
+        if(delete_rule_index!=0){
+            *(int *)controlinfo =delete_rule_index;
+            controlinfo_len =sizeof(delete_rule_index);
+			controlinfo_len =sizeof(delete_rule_index);
+			//printf("sizeof delete_rule_index = %d",controlinfo_len);
+            //printf("test111\n");
+        }
+        else{
+        *(struct Rule *)(controlinfo) = tmp_rule;
 		// *(int *)controlinfo = controlled_protocol;
 		// *(int *)(controlinfo + 4) = controlled_saddr;
 		// *(int *)(controlinfo + 8) = controlled_daddr;
@@ -219,6 +235,7 @@ int main(int argc, char *argv[]){
 		// }
         // *(int *)(controlinfo + 68) = controlled_interface;
 		controlinfo_len =sizeof(tmp_rule);
+        }
 	}
 	
 //	printf("input info: p = %d, x = %d y = %d m = %d n = %d \n", controlled_protocol,controlled_saddr,controlled_daddr,controlled_srcport,controlled_dstport);
