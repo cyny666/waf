@@ -306,13 +306,13 @@ def modify_rules(treeview):
             select_saddr = ' '
         if 'any' in select_daddr:
             select_daddr = ' '
-        if 'any' in select_sport:
+        if 'any' in str(select_sport):
             select_sport = ' '
-        if 'any' in select_dport:
+        if 'any' in str(select_dport):
             select_dport = ' '
-        if 'any' in select_interface:
+        if 'any' in str(select_interface):
             select_interface = ' '
-        if 'any' in select_subtype:
+        if 'any' in str(select_subtype):
             select_subtype = ' '
         check_rules.destroy()
         modify = tkinter.Tk()
@@ -490,10 +490,6 @@ def modify_rules(treeview):
     sure.place(x=300,y= 170)
     rule_select.place(x=200, y=70)
     check_rules.mainloop()
-
-
-
-
 def check_log ():
     check_log = tkinter.Tk()
     check_log.title("系统日志")
@@ -572,7 +568,6 @@ table.place(x=20, y=70)
 
 #show the window
 root.mainloop()
-
 
 
 
