@@ -274,8 +274,27 @@ def add_rules ():
     add.mainloop()
 def remove_rules (treeview):
     remove = tkinter.Tk()
+    rules = []
     remove.title("remove the rules")
-    remove.geometry("800x400+400+200")
+    remove.geometry("400x200+400+200")
+    number_rows = len(treeview.get_children())
+    rules_select = tkinter.Label(remove, text="输入要修改的规则:", font=("Arial", 10))
+    rules_select.place(x=70, y=70)
+    for number in range(number_rows):
+        rules.append('规则' + str(number + 1))
+    rules_option = tkinter.StringVar()
+    def delete_rules():
+        select_rule = rule_select.get()
+        select_number = select_rule[-1]
+        table.delete(treeview.get_children()[int(select_number)-1])
+        command = './configure -d ' + select_number
+        os.system(command)
+        messagebox.showinfo(parent=remove, title="success", message="删除成功")
+        remove.destroy()
+    rule_select = ttk.Combobox(remove, textvariable=rules_option, values=rules, width=10, height=10)
+    sure = tkinter.Button(remove, text="确定", font=("Arial", 10),command=delete_rules)
+    sure.place(x=300, y=170)
+    rule_select.place(x=200, y=70)
     remove.mainloop()
 
 def modify_rules(treeview):
@@ -292,6 +311,8 @@ def modify_rules(treeview):
         # get the rule number
         select_rule = rule_select.get()
         select_number =select_rule[-1]
+        command = './configure -d '+ select_number
+        os.system(command)
         row_values = treeview.item(treeview.get_children()[int(select_number) - 1])["values"]
         select_saddr = row_values[1]
         select_sport = row_values[2]
@@ -452,7 +473,16 @@ def modify_rules(treeview):
                     rule = [number, SmodifyR_text, SPORT_text, DmodifyR_text, DPORT_text, interface_text,
                             time_begin_text, time_end_text, protocol_text, icmp_subtype_text]
                     number += 1
-                    table.insert('', END, values=rule)
+                    table.set(table.get_children()[int(select_number) - 1], column=2, value=SmodifyR_text)
+                    table.set(table.get_children()[int(select_number)-1],column=3, value=SPORT_text)
+                    table.set(table.get_children()[int(select_number) - 1], column=4, value=DmodifyR_text)
+                    table.set(table.get_children()[int(select_number) - 1], column=5, value=DPORT_text)
+                    table.set(table.get_children()[int(select_number) - 1], column=6, value=interface_text)
+                    table.set(table.get_children()[int(select_number) - 1], column=7, value=time_begin_text)
+                    table.set(table.get_children()[int(select_number) - 1], column=8, value=time_end_text)
+                    table.set(table.get_children()[int(select_number) - 1], column=9, value=protocol_text)
+                    table.set(table.get_children()[int(select_number) - 1], column=10, value=icmp_subtype_text)
+
                 else:
                     messagebox.showinfo(parent=modify, title="error", message="添加失败,请检查你的输入")
 

@@ -27,5 +27,5 @@
   
 - 可以删除规则
 
-  - 通过输入`.\configure -d index`删除指定序号的规则，其中index从1开始
+  - 通过输入`./configure -d index`删除指定序号的规则，其中index从1开始
 
