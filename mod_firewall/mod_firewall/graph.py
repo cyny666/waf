@@ -213,6 +213,7 @@ def add_rules ():
             flag = os.system(command)
             if flag == 0:
                 messagebox.showinfo(parent=add,title="添加成功",message="添加成功")
+                add.destroy()
                 # 把添加的规则插入图表
                 if not re.search(r"\d", DADDR_text):
                     DADDR_text = " any " + DADDR_text
@@ -472,7 +473,6 @@ def modify_rules(treeview):
                         interface_text = "  " + interface_value
                     rule = [number, SmodifyR_text, SPORT_text, DmodifyR_text, DPORT_text, interface_text,
                             time_begin_text, time_end_text, protocol_text, icmp_subtype_text]
-                    number += 1
                     table.set(table.get_children()[int(select_number) - 1], column=2, value=SmodifyR_text)
                     table.set(table.get_children()[int(select_number)-1],column=3, value=SPORT_text)
                     table.set(table.get_children()[int(select_number) - 1], column=4, value=DmodifyR_text)
