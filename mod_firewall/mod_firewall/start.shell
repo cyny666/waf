@@ -1,0 +1,4 @@
+#!/bin/bash
+gcc -o configure -c configure.c
+make
+python graph.py

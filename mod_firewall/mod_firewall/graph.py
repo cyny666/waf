@@ -190,11 +190,13 @@ def add_rules ():
             DPORT_text = " -n " + DPORT_text
         if not re.search(r"\d" , time_begin_text):
             time_begin_text = " " + time_begin_text
+            time_begin_value = " "
         else:
             time_begin_value = time_begin_text
             time_begin_text = " -b " + time_begin_text
         if not re.search(r"\d", time_end_text):
             time_end_text = " " + time_end_text
+            time_end_value = " "
         else:
             time_end_value = time_end_text
             time_end_text = " -e " + time_end_text
@@ -239,7 +241,7 @@ def add_rules ():
                     interface_text = " any " + interface_text
                 else:
                     interface_text = "  " + interface_value
-                rule = [number, SADDR_text, SPORT_text, DADDR_text, DPORT_text, interface_text, time_begin_text, time_end_text, protocol_text,icmp_subtype_text]
+                rule = [number, SADDR_text, SPORT_text, DADDR_text, DPORT_text, interface_text, time_begin_value, time_end_value, protocol_text,icmp_subtype_text]
                 number += 1
                 table.insert('', END, values=rule)
             else :
@@ -423,11 +425,13 @@ def modify_rules(treeview):
                 DPORT_text = " -n " + DPORT_text
             if not re.search(r"\d", time_begin_text):
                 time_begin_text = " " + time_begin_text
+                time_begin_value = " "
             else:
                 time_begin_value = time_begin_text
                 time_begin_text = " -b " + time_begin_text
             if not re.search(r"\d", time_end_text):
                 time_end_text = " " + time_end_text
+                time_end_value = " "
             else:
                 time_end_value = time_end_text
                 time_end_text = " -e " + time_end_text
@@ -446,6 +450,7 @@ def modify_rules(treeview):
                 flag = os.system(command)
                 if flag == 0:
                     messagebox.showinfo(parent=modify, title="添加成功", message="添加成功")
+                    modify.destroy()
                     # 把添加的规则插入图表
                     if not re.search(r"\d", DmodifyR_text):
                         DmodifyR_text = " any " + DmodifyR_text
@@ -472,17 +477,16 @@ def modify_rules(treeview):
                     else:
                         interface_text = "  " + interface_value
                     rule = [number, SmodifyR_text, SPORT_text, DmodifyR_text, DPORT_text, interface_text,
-                            time_begin_text, time_end_text, protocol_text, icmp_subtype_text]
-                    table.set(table.get_children()[int(select_number) - 1], column=2, value=SmodifyR_text)
-                    table.set(table.get_children()[int(select_number)-1],column=3, value=SPORT_text)
-                    table.set(table.get_children()[int(select_number) - 1], column=4, value=DmodifyR_text)
-                    table.set(table.get_children()[int(select_number) - 1], column=5, value=DPORT_text)
-                    table.set(table.get_children()[int(select_number) - 1], column=6, value=interface_text)
-                    table.set(table.get_children()[int(select_number) - 1], column=7, value=time_begin_text)
-                    table.set(table.get_children()[int(select_number) - 1], column=8, value=time_end_text)
-                    table.set(table.get_children()[int(select_number) - 1], column=9, value=protocol_text)
-                    table.set(table.get_children()[int(select_number) - 1], column=10, value=icmp_subtype_text)
-
+                            time_begin_value, time_end_value, protocol_text, icmp_subtype_text]
+                    table.set(table.get_children()[int(select_number) - 1], column=1, value=SmodifyR_text)
+                    table.set(table.get_children()[int(select_number)-1],column=2, value=SPORT_text)
+                    table.set(table.get_children()[int(select_number) - 1], column=3, value=DmodifyR_text)
+                    table.set(table.get_children()[int(select_number) - 1], column=4, value=DPORT_text)
+                    table.set(table.get_children()[int(select_number) - 1], column=5, value=interface_text)
+                    table.set(table.get_children()[int(select_number) - 1], column=6, value=time_begin_value)
+                    table.set(table.get_children()[int(select_number) - 1], column=7, value=time_end_value)
+                    table.set(table.get_children()[int(select_number) - 1], column=8, value=protocol_text)
+                    table.set(table.get_children()[int(select_number) - 1], column=9, value=icmp_subtype_text)
                 else:
                     messagebox.showinfo(parent=modify, title="error", message="添加失败,请检查你的输入")
 
@@ -537,6 +541,8 @@ def run_project ():
         messagebox.showinfo(parent=root, title="过滤失败", message="error")
 def stop_project ():
     stop_flag = os.system('rmmod mod_firewall.ko')
+    global number
+    number = 1
     if stop_flag == 0 :
         messagebox.showinfo(parent=root, title="关闭防火墙", message="关闭防火墙")
         obj = table.get_children()  # 获取所有对象
