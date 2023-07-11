@@ -10,6 +10,7 @@ import re
 from tkinter import END
 import ipaddress
 import csv
+import atexit
 # 点击按钮后的函数
 # 检测ip地址的合法性
 def is_valid_ip_address(ip_address_str):
@@ -18,10 +19,12 @@ def is_valid_ip_address(ip_address_str):
         return True
     except ipaddress.AddressValueError:
         return False
-def export_to_csv(treeview):
+def export_to_csv(treeview,filepath=""):
     # 获取所有行和列的数据
+    global number
     headings = []
     rows = []
+    row_length = treeview.get_children()
     for column in treeview["columns"]:
         headings.append(column)
     for row in treeview.get_children():
@@ -29,83 +32,94 @@ def export_to_csv(treeview):
         for column in headings:
             current_row.append(treeview.item(row)["values"][headings.index(column)])
         rows.append(current_row)
-    file_path = filedialog.askdirectory()
     # 创建并写入 CSV 文件
-    if file_path:
+    if   not filepath:
+        filepath = filedialog.askdirectory()
         # 拼接文件路径
-        file_path = os.path.join(file_path, 'table.csv')
+        file_path = os.path.join(filepath, 'table.csv')
         with open(file_path, "w", newline="") as csvfile:
             writer = csv.writer(csvfile)
             writer.writerow(headings)
             writer.writerows(rows)
         messagebox.showinfo(parent=root, title='succedd', message='导出成功')
-def input_csv(treeview):
-    file_path = filedialog.askopenfilename(defaultextension='.csv')
+    else:
+        with open(filepath, "w", newline="") as csvfile:
+            writer = csv.writer(csvfile)
+            writer.writerow(headings)
+            writer.writerows(rows)
+
+def input_csv(treeview, file_path = ""):
+    # 如果用户选择了文件
+    init = 1
+    if  file_path:
+        init = 0
+    else:
+        file_path = filedialog.askopenfilename(defaultextension='.csv')
+    # 创建一个空列表
+    data = []
     # 如果用户选择了文件
     if file_path:
         # 获取已有的行数
+        if os.path.getsize(file_path) == 0 :
+            return 1
         rows = treeview.get_children()
-        row_count = len(rows)
-        # 创建一个空列表
-        data = []
-        # 如果用户选择了文件
-        if file_path:
-            # 获取已有的行数
-            rows = treeview.get_children()
-            row_count = len(rows)
-            # 从CSV文件的第二行开始读取数据，将数据添加到treeview中
-            with open(file_path, 'r') as f:
-                reader = csv.reader(f)
-                headers = next(reader)  # 跳过第一行数据
-                i = 0
-                for row in reader:
-                    treeview.insert('', row_count + i, values=row)
-                    i += 1
-                    saddr = row[1]
-                    sport = row[2]
-                    daddr = row[3]
-                    dport = row[4]
-                    interface = row[5]
-                    time_begin = row[6]
-                    time_end = row[7]
-                    protocol = row[8]
-                    subtype = row[9]
-                    if re.search('.*any.*', saddr):
-                        saddr = ' '
-                    else:
-                        saddr = ' -x ' + saddr
-                    if re.search('.*any.*', daddr):
-                        daddr = '  '
-                    else:
-                        daddr = ' -y ' + daddr
-                    if re.search('.*any.*', sport):
-                        sport = ' '
-                    else:
-                        sport = ' -m ' + daddr
-                    if re.search('.*any.*', dport):
-                        dport=' '
-                    else:
-                        dport = ' -n ' + dport
-                    if re.search(r'\d' ,time_begin):
-                        time_begin = ' -b ' + time_begin
-                    else:
-                        time_begin = ' '
-                    if re.search(r'\d',time_end):
-                        time_end = ' -e ' + time_end
-                    else:
-                        time_end = ' '
-                    if re.search('.*any.*', interface):
-                        interface = ''
-                    else:
-                        interface = ' -i ' + interface
-                    if re.search('.*any.*', subtype):
-                        subtype = ' '
-                    else:
-                        subtype = ' -t '+ subtype
-                    command = "./configure" + " -p " + protocol + saddr+ sport + daddr + dport + time_begin + time_end + interface + subtype
-                    print(command)
-                    flag = os.system(command)
-                    if flag == 0:
+        global  number
+
+        # 从CSV文件的第二行开始读取数据，将数据添加到treeview中
+        with open(file_path, 'r') as f:
+            reader = csv.reader(f)
+            headers = next(reader)  # 跳过第一行数据
+            i = 0
+            for row in reader:
+                treeview.insert('', number +i, values=row)
+                i += 1
+                saddr = row[1]
+                sport = row[2]
+                daddr = row[3]
+                dport = row[4]
+                interface = row[5]
+                time_begin = row[6]
+                time_end = row[7]
+                protocol = row[8]
+                subtype = row[9]
+                if re.search('.*any.*', saddr):
+                    saddr = ' '
+                else:
+                    saddr = ' -x ' + saddr
+                if re.search('.*any.*', daddr):
+                    daddr = '  '
+                else:
+                    daddr = ' -y ' + daddr
+                if re.search('.*any.*', sport):
+                    sport = ' '
+                else:
+                    sport = ' -m ' + daddr
+                if re.search('.*any.*', dport):
+                    dport=' '
+                else:
+                    dport = ' -n ' + dport
+                if re.search(r'\d' ,time_begin):
+                    time_begin = ' -b ' + time_begin
+                else:
+                    time_begin = ' '
+                if re.search(r'\d',time_end):
+                    time_end = ' -e ' + time_end
+                else:
+                    time_end = ' '
+                if re.search('.*any.*', interface):
+                    interface = ''
+                else:
+                    interface = ' -i ' + interface
+                if re.search('.*any.*', subtype):
+                    subtype = ' '
+                else:
+                    subtype = ' -t '+ subtype
+                command = "./configure" + " -p " + protocol + saddr+ sport + daddr + dport + time_begin + time_end + interface + subtype
+                print(command)
+                flag = os.system(command)
+                export_to_csv(table, "database.csv")
+                if init:
+                    if flag == 0 :
                         messagebox.showinfo(parent=root, title="导入成功", message="导入成功")
                     else:
                         messagebox.showinfo(parent=root, title="导入失败", message="导入失败")
@@ -244,6 +258,7 @@ def add_rules ():
                 rule = [number, SADDR_text, SPORT_text, DADDR_text, DPORT_text, interface_text, time_begin_value, time_end_value, protocol_text,icmp_subtype_text]
                 number += 1
                 table.insert('', END, values=rule)
+                export_to_csv(table, "database.csv")
             else :
                 messagebox.showinfo(parent=add,title="error" ,message= "添加失败,请检查你的输入")
 
@@ -294,6 +309,7 @@ def remove_rules (treeview):
         os.system(command)
         messagebox.showinfo(parent=remove, title="success", message="删除成功")
         remove.destroy()
+        export_to_csv(table, "database.csv")
     rule_select = ttk.Combobox(remove, textvariable=rules_option, values=rules, width=10, height=10)
     sure = tkinter.Button(remove, text="确定", font=("Arial", 10),command=delete_rules)
     sure.place(x=300, y=170)
@@ -487,6 +503,7 @@ def modify_rules(treeview):
                     table.set(table.get_children()[int(select_number) - 1], column=7, value=time_end_value)
                     table.set(table.get_children()[int(select_number) - 1], column=8, value=protocol_text)
                     table.set(table.get_children()[int(select_number) - 1], column=9, value=icmp_subtype_text)
+                    export_to_csv(table, "database.csv")
                 else:
                     messagebox.showinfo(parent=modify, title="error", message="添加失败,请检查你的输入")
 
@@ -600,7 +617,9 @@ table.column('TIME_BEGIN', width=100 ,minwidth=100,anchor='s')
 table.column('TIME_END', width=100 ,minwidth=100,anchor='s')
 table.column('PROTOCOL', width=100 ,minwidth=100,anchor='s')
 table.column('icmp subtype' ,width=100,minwidth=100,anchor='s')
+input_csv(table,"database.csv")
 table.place(x=20, y=70)
+
 
 #show the window
 root.mainloop()

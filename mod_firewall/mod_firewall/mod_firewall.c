@@ -24,7 +24,7 @@
 #include <linux/netdevice.h>
 #include <linux/etherdevice.h>
 
-#define MATCH		1
+#define MATCH	1
 #define NMATCH	0
 
 int enable_flag = 0;
@@ -141,35 +141,46 @@ int port_check(unsigned short srcport, unsigned short dstport,int index){
 	return NMATCH;
 }
 
+
+
 /*检测IP地址是否匹配，若匹配返回MATCH并丢弃网络包*/
 int ipaddr_check(unsigned int saddr, unsigned int daddr,int index){
-    unsigned short controlled_saddr=rules_array[index].m_controlled_saddr;
-    unsigned short controlled_daddr=rules_array[index].m_controlled_daddr;
 
+    unsigned int controlled_saddr=rules_array[index].m_controlled_saddr;
+    unsigned int controlled_daddr=rules_array[index].m_controlled_daddr;
 	if ((controlled_saddr == 0 ) && ( controlled_daddr == 0 ))	//未设置IP地址
-		return MATCH;
+		return 1;
 	if ((controlled_saddr != 0 ) && ( controlled_daddr == 0 ))
 	{
 		if (controlled_saddr == saddr)
-			return MATCH;
+		{	
+			printk("Invalid source ip address\n");
+			return 1;
+		}
 		else
-			return NMATCH;
+			return 0;
 	}
 	if ((controlled_saddr == 0 ) && ( controlled_daddr != 0 ))
 	{
 		if (controlled_daddr == daddr)
-			return MATCH;
+		{
+			printk("Invalid destination ip address\n");
+			return 1;
+		}
 		else
-			return NMATCH;
+			return 0;
 	}
 	if ((controlled_saddr != 0 ) && ( controlled_daddr != 0 ))
 	{
 		if ((controlled_saddr == saddr) && (controlled_daddr == daddr))
-			return MATCH;
+		{
+			printk("Invalid source and destination ip address\n");
+			return 1;
+		}
 		else
-			return NMATCH;
+			return 0;
 	}
-	return NMATCH;
+	return 0;
 }
 
 // ICMP协议检查函数
@@ -199,10 +210,8 @@ int icmp_check(int index){
 	for(int i=0;i<9;i++){
 	//printk("icmp[%d]: %d",i,icmp_type[i]);
         if(picmphdr->type==(icmp_type_reflection[i]).value &&icmp_type[(icmp_type_reflection[i]).key]==1 ){
-            if (ipaddr_check(piphdr->daddr,piphdr->saddr,index) == MATCH ){
-			 	printk("This type of ICMP packet is denied! \n");
+            printk("This type of ICMP packet is denied! \n");
 				return 1;
-			}
         }
     
     }
@@ -214,7 +223,7 @@ int tcp_check(int index){
 	struct tcphdr *ptcphdr;
 //   printk("<0>This is an tcp packet.\n");
    ptcphdr = (struct tcphdr *)(tmpskb->data +(piphdr->ihl*4));
-	if ((ipaddr_check(piphdr->saddr,piphdr->daddr,index) == MATCH) && (port_check(ptcphdr->source,ptcphdr->dest,index) == MATCH)){
+	if ( (port_check(ptcphdr->source,ptcphdr->dest,index) == MATCH)){
 	 	printk("A TCP packet is denied! \n");
 		return 1;
 	}
@@ -227,7 +236,7 @@ int udp_check(int index){
 	struct udphdr *pudphdr;
 //   printk("<0>This is an udp packet.\n");
    pudphdr = (struct udphdr *)(tmpskb->data +(piphdr->ihl*4));
-	if ((ipaddr_check(piphdr->saddr,piphdr->daddr,index) == MATCH) && (port_check(pudphdr->source,pudphdr->dest,index) == MATCH)){
+	if ( (port_check(pudphdr->source,pudphdr->dest,index) == MATCH)){
 	 	printk("A UDP packet is denied! \n");
 		return 1;
 	}
@@ -235,7 +244,7 @@ int udp_check(int index){
       return 0;
 }
 
-//返回0表示时间判断功能关闭 或当前时间符合规则
+//返回1表示该条规则未设置时间或当前时间在要过滤的时间范围内
 int time_check(struct tm *tm,int rule_index){
     int controlled_time_flag=rules_array[rule_index].m_controlled_time_flag;
     int controlled_time_begin=rules_array[rule_index].m_controlled_time_begin;
@@ -303,6 +312,10 @@ int net_interface_check(struct sk_buff *skb,const struct nf_hook_state *state,in
 }
 
 void delete_rule(const int rule_index){
+    if(rule_index>rules_num || rule_index<=0){
+        printk("Invalid delete rule index!!!\n");
+        return;
+    }
     for(int i=rule_index-1;i<rules_num-1;++i){
         rules_array[i]=rules_array[i+1];
     }
@@ -339,7 +352,7 @@ void Packet_filtering_control_rule_information(void){
 //返回-1表示规则未设置协议，返回0表示不是规则设置的协议，返回1-3对应相应的协议
 int protocol_check(unsigned char protocol,int rule_index)
 {
-    if(rules_array[rule_index].m_controlled_protocol==0)
+    if(rules_array[rule_index].m_controlled_protocol==0)    //
         return -1;
     if(protocol!=rules_array[rule_index].m_controlled_protocol)
         return 0;
@@ -373,9 +386,14 @@ unsigned int hook_func(void * priv,struct sk_buff *skb,const struct nf_hook_stat
         ktime_get_real_ts64(&ts);  // 获取当前系统时间
         time64_to_tm(ts.tv_sec, 0, &time_info);  // 将时间转换为本地时间
 
-        int result_time_check=time_check(&time_info,i);
+        int result_time_check=time_check(&time_info,i); //时间检查
 
-        int result_protocol_check=protocol_check(piphdr->protocol,i);
+        int result_ip_check=ipaddr_check(piphdr->saddr,piphdr->daddr,i);    //ip检查
+		printk("result_ip_check=%d",result_ip_check);
+
+        int result_protocol_check=protocol_check(piphdr->protocol,i);   //协议检查
+
+        //printk("result_protocol_check=%d",result_protocol_check);
         int result_icmp_check=1;
         int result_tcp_check=1;
         int result_udp_check=1;
@@ -411,9 +429,8 @@ unsigned int hook_func(void * priv,struct sk_buff *skb,const struct nf_hook_stat
         }
         //printk("%d,%d,%d,%d,%d",result_interface_check , result_time_check, result_icmp_check, result_tcp_check , result_udp_check);
 
-        if(result_interface_check && result_time_check && result_icmp_check && result_tcp_check && result_udp_check)
-        {
-            
+        if(result_interface_check && result_time_check && result_ip_check && result_icmp_check && result_tcp_check && result_udp_check)
+        {			
             return NF_DROP;
         }
             
