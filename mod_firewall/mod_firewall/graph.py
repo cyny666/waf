@@ -115,7 +115,6 @@ def input_csv(treeview, file_path = ""):
                 else:
                     subtype = ' -t '+ subtype
                 command = "./configure" + " -p " + protocol + saddr+ sport + daddr + dport + time_begin + time_end + interface + subtype
-                print(command)
                 flag = os.system(command)
                 export_to_csv(table, "database.csv")
                 if init:
@@ -565,6 +564,7 @@ def stop_project ():
         obj = table.get_children()  # 获取所有对象
         for o in obj:
             table.delete(o)  # 删除对象
+        export_to_csv(table, "database.csv")
     else :
         messagebox.showinfo(parent=root, title="停止失败", message="error")
 # 开始主函数
